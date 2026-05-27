@@ -68,6 +68,7 @@ impl PluginConfig {
                     || tag == "share"
                     || tag == "multiple-select"
                     || tag == "layout-manager"
+                    || tag == "side-bar"
                     || tag == "link"
                 {
                     Some(PluginConfig {

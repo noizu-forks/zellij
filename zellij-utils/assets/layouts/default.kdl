@@ -2,7 +2,12 @@ layout {
     pane size=1 borderless=true {
         plugin location="tab-bar"
     }
-    pane
+    pane split_direction="vertical" {
+        pane size=3 borderless=true {
+            plugin location="side-bar"
+        }
+        pane borderless=true
+    }
     pane size=1 borderless=true {
         plugin location="status-bar"
     }

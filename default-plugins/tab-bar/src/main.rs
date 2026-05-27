@@ -76,6 +76,7 @@ impl ZellijPlugin for State {
                 self.mode_info = mode_info;
             },
             Event::TabUpdate(tabs) => {
+                let tabs: Vec<TabInfo> = tabs.into_iter().filter(|t| t.parent_tab_id.is_none()).collect();
                 if let Some(active_tab_index) = tabs.iter().position(|t| t.active) {
                     // tabs are indexed starting from 1 so we need to add 1
                     let active_tab_idx = active_tab_index + 1;

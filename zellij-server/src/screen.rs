@@ -3562,43 +3562,15 @@ impl Screen {
             }
             plugin_tab_updates.sort_by(|a, b| a.position.cmp(&b.position));
 
-            // Collect side tab info per parent before filtering
-            let active_side_tab_id = plugin_tab_updates.iter()
+            // When a side tab is active, also mark its parent as active for the tab-bar
+            let active_side_parent = plugin_tab_updates.iter()
                 .find(|t| t.active && t.parent_tab_id.is_some())
-                .map(|t| (t.parent_tab_id.unwrap(), t.tab_id));
-
-            // Group side tabs by parent
-            let mut side_tabs_by_parent: HashMap<usize, Vec<(String, usize, bool)>> = HashMap::new();
-            for tab in plugin_tab_updates.iter() {
-                if let Some(parent_id) = tab.parent_tab_id {
-                    let emoji = tab.side_tab_emoji.clone().unwrap_or_else(|| "?".to_string());
-                    let is_active = tab.active;
-                    side_tabs_by_parent
-                        .entry(parent_id)
-                        .or_default()
-                        .push((emoji, tab.tab_id, is_active));
-                }
-            }
-
-            let mut main_tab_updates: Vec<TabInfo> = plugin_tab_updates.into_iter()
-                .filter(|t| t.parent_tab_id.is_none())
-                .collect();
-
-            // Mark parent active when child side tab is focused, embed emoji sidebar in name
-            for tab in main_tab_updates.iter_mut() {
-                if let Some((parent_id, _)) = active_side_tab_id {
+                .and_then(|t| t.parent_tab_id);
+            if let Some(parent_id) = active_side_parent {
+                for tab in plugin_tab_updates.iter_mut() {
                     if tab.tab_id == parent_id {
                         tab.active = true;
                     }
-                }
-                if let Some(side_tabs) = side_tabs_by_parent.get(&tab.tab_id) {
-                    let emoji_bar: String = side_tabs.iter()
-                        .map(|(emoji, _, is_active)| {
-                            if *is_active { format!("[{}]", emoji) } else { emoji.clone() }
-                        })
-                        .collect::<Vec<_>>()
-                        .join("");
-                    tab.name = format!("{} {}", tab.name, emoji_bar);
                 }
             }
 
@@ -3607,7 +3579,7 @@ impl Screen {
                 plugin_updates.push((
                     Some(plugin_id),
                     Some(*client_id),
-                    Event::TabUpdate(main_tab_updates.clone()),
+                    Event::TabUpdate(plugin_tab_updates.clone()),
                 ));
             }
         }
