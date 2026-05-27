@@ -851,6 +851,7 @@ impl From<crate::input::actions::Action>
             CloseFocusAction,
             CloseFocusByPaneIdAction,
             ClosePluginPaneAction,
+            CloseSideTabAction,
             CloseTabAction,
             CloseTabByIdAction,
             CloseTerminalPaneAction,
@@ -869,8 +870,11 @@ impl From<crate::input::actions::Action>
             FocusPluginPaneWithIdAction,
             FocusPreviousPaneAction,
             FocusTerminalPaneWithIdAction,
+            GoToNextSideTabAction,
             GoToNextTabAction,
+            GoToPreviousSideTabAction,
             GoToPreviousTabAction,
+            GoToSideTabAction,
             GoToTabAction,
             GoToTabByIdAction,
             GoToTabNameAction,
@@ -900,6 +904,7 @@ impl From<crate::input::actions::Action>
             NewInPlacePaneAction,
             NewInPlacePluginPaneAction,
             NewPaneAction,
+            NewSideTabAction,
             NewStackedPaneAction,
             NewTabAction,
             NewTiledPaneAction,
@@ -964,6 +969,7 @@ impl From<crate::input::actions::Action>
             ToggleFullscreenByPaneIdAction,
             ToggleGroupMarkingAction,
             ToggleMouseModeAction,
+            ToggleSideBarAction,
             TogglePaneBorderlessAction,
             TogglePaneEmbedOrFloatingAction,
             TogglePaneEmbedOrFloatingByPaneIdAction,
@@ -1335,6 +1341,24 @@ impl From<crate::input::actions::Action>
             },
             crate::input::actions::Action::ToggleTheme => {
                 ActionType::ToggleTheme(ToggleThemeAction {})
+            },
+            crate::input::actions::Action::GoToNextSideTab => {
+                ActionType::GoToNextSideTab(GoToNextSideTabAction {})
+            },
+            crate::input::actions::Action::GoToPreviousSideTab => {
+                ActionType::GoToPreviousSideTab(GoToPreviousSideTabAction {})
+            },
+            crate::input::actions::Action::GoToSideTab { index } => {
+                ActionType::GoToSideTab(GoToSideTabAction { index: index as u32 })
+            },
+            crate::input::actions::Action::NewSideTab { name, .. } => {
+                ActionType::NewSideTab(NewSideTabAction { name })
+            },
+            crate::input::actions::Action::CloseSideTab => {
+                ActionType::CloseSideTab(CloseSideTabAction {})
+            },
+            crate::input::actions::Action::ToggleSideBar => {
+                ActionType::ToggleSideBar(ToggleSideBarAction {})
             },
             crate::input::actions::Action::SwitchSession {
                 name,
@@ -2200,6 +2224,25 @@ impl TryFrom<crate::client_server_contract::client_server_contract::Action>
             ActionType::SetDarkTheme(_) => Ok(crate::input::actions::Action::SetDarkTheme),
             ActionType::SetLightTheme(_) => Ok(crate::input::actions::Action::SetLightTheme),
             ActionType::ToggleTheme(_) => Ok(crate::input::actions::Action::ToggleTheme),
+            ActionType::GoToNextSideTab(_) => {
+                Ok(crate::input::actions::Action::GoToNextSideTab)
+            },
+            ActionType::GoToPreviousSideTab(_) => {
+                Ok(crate::input::actions::Action::GoToPreviousSideTab)
+            },
+            ActionType::GoToSideTab(go_to_side_tab_action) => {
+                Ok(crate::input::actions::Action::GoToSideTab {
+                    index: go_to_side_tab_action.index as usize,
+                })
+            },
+            ActionType::NewSideTab(new_side_tab_action) => {
+                Ok(crate::input::actions::Action::NewSideTab {
+                    layout: None,
+                    name: new_side_tab_action.name,
+                })
+            },
+            ActionType::CloseSideTab(_) => Ok(crate::input::actions::Action::CloseSideTab),
+            ActionType::ToggleSideBar(_) => Ok(crate::input::actions::Action::ToggleSideBar),
             ActionType::SwitchSession(switch_session_action) => {
                 Ok(crate::input::actions::Action::SwitchSession {
                     name: switch_session_action.name.clone(),

@@ -32,6 +32,7 @@ pub enum ActionType {
     BreakPane,
     EditScrollback,
     NewTab,
+    ToggleSideBar,
     Detach,
     Quit,
     NewStackedPane,
@@ -86,6 +87,7 @@ impl ActionType {
             ActionType::BreakPane => "Break pane to new tab".to_string(),
             ActionType::EditScrollback => "Open pane scrollback in editor".to_string(),
             ActionType::NewTab => "New tab".to_string(),
+            ActionType::ToggleSideBar => "Sidebar".to_string(),
             ActionType::Detach => "Detach".to_string(),
             ActionType::Quit => "Quit".to_string(),
             ActionType::Other(_) => "Other action".to_string(),
@@ -139,6 +141,7 @@ impl ActionType {
             action if action.launches_plugin("plugin-manager") => ActionType::PluginManager,
             action if action.launches_plugin("zellij:about") => ActionType::About,
             action if matches!(action, Action::NewTab { .. }) => ActionType::NewTab,
+            Action::ToggleSideBar => ActionType::ToggleSideBar,
             _ => ActionType::Other(format!("{:?}", action)),
         }
     }

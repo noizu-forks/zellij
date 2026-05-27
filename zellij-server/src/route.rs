@@ -1012,6 +1012,56 @@ pub(crate) fn route_action(
                 ))
                 .with_context(err_context)?;
         },
+        Action::GoToNextSideTab => {
+            senders
+                .send_to_screen(ScreenInstruction::SwitchSideTabNext(
+                    client_id,
+                    Some(NotificationEnd::new(completion_tx)),
+                ))
+                .with_context(err_context)?;
+        },
+        Action::GoToPreviousSideTab => {
+            senders
+                .send_to_screen(ScreenInstruction::SwitchSideTabPrev(
+                    client_id,
+                    Some(NotificationEnd::new(completion_tx)),
+                ))
+                .with_context(err_context)?;
+        },
+        Action::GoToSideTab { index } => {
+            senders
+                .send_to_screen(ScreenInstruction::GoToSideTab(
+                    index,
+                    client_id,
+                    Some(NotificationEnd::new(completion_tx)),
+                ))
+                .with_context(err_context)?;
+        },
+        Action::NewSideTab { name, .. } => {
+            senders
+                .send_to_screen(ScreenInstruction::NewSideTab(
+                    name,
+                    (client_id, false),
+                    Some(NotificationEnd::new(completion_tx)),
+                ))
+                .with_context(err_context)?;
+        },
+        Action::CloseSideTab => {
+            senders
+                .send_to_screen(ScreenInstruction::CloseSideTab(
+                    client_id,
+                    Some(NotificationEnd::new(completion_tx)),
+                ))
+                .with_context(err_context)?;
+        },
+        Action::ToggleSideBar => {
+            senders
+                .send_to_screen(ScreenInstruction::ToggleSideBar(
+                    client_id,
+                    Some(NotificationEnd::new(completion_tx)),
+                ))
+                .with_context(err_context)?;
+        },
         Action::ToggleActiveSyncTab => {
             senders
                 .send_to_screen(ScreenInstruction::ToggleActiveSyncTab(

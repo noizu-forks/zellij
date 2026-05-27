@@ -1120,6 +1120,12 @@ pub enum ActionName {
     SetDarkTheme = 101,
     SetLightTheme = 102,
     ToggleTheme = 103,
+    GoToNextSideTab = 104,
+    GoToPreviousSideTab = 105,
+    GoToSideTab = 106,
+    NewSideTab = 107,
+    CloseSideTab = 108,
+    ToggleSideBar = 109,
 }
 impl ActionName {
     /// String value of the enum field names used in the ProtoBuf definition.
@@ -1229,6 +1235,12 @@ impl ActionName {
             ActionName::SetDarkTheme => "SetDarkTheme",
             ActionName::SetLightTheme => "SetLightTheme",
             ActionName::ToggleTheme => "ToggleTheme",
+            ActionName::GoToNextSideTab => "GoToNextSideTab",
+            ActionName::GoToPreviousSideTab => "GoToPreviousSideTab",
+            ActionName::GoToSideTab => "GoToSideTab",
+            ActionName::NewSideTab => "NewSideTab",
+            ActionName::CloseSideTab => "CloseSideTab",
+            ActionName::ToggleSideBar => "ToggleSideBar",
         }
     }
     /// Creates an enum from field names used in the ProtoBuf definition.
@@ -1335,6 +1347,12 @@ impl ActionName {
             "SetDarkTheme" => Some(Self::SetDarkTheme),
             "SetLightTheme" => Some(Self::SetLightTheme),
             "ToggleTheme" => Some(Self::ToggleTheme),
+            "GoToNextSideTab" => Some(Self::GoToNextSideTab),
+            "GoToPreviousSideTab" => Some(Self::GoToPreviousSideTab),
+            "GoToSideTab" => Some(Self::GoToSideTab),
+            "NewSideTab" => Some(Self::NewSideTab),
+            "CloseSideTab" => Some(Self::CloseSideTab),
+            "ToggleSideBar" => Some(Self::ToggleSideBar),
             _ => None,
         }
     }

@@ -1062,6 +1062,36 @@ impl TryFrom<ProtobufAction> for Action {
                 },
                 _ => Err("Wrong payload for Action::NewInPlacePane"),
             },
+            Some(ProtobufActionName::GoToNextSideTab) => match protobuf_action.optional_payload {
+                Some(_) => Err("GoToNextSideTab should not have a payload"),
+                None => Ok(Action::GoToNextSideTab),
+            },
+            Some(ProtobufActionName::GoToPreviousSideTab) => {
+                match protobuf_action.optional_payload {
+                    Some(_) => Err("GoToPreviousSideTab should not have a payload"),
+                    None => Ok(Action::GoToPreviousSideTab),
+                }
+            },
+            Some(ProtobufActionName::GoToSideTab) => match protobuf_action.optional_payload {
+                Some(OptionalPayload::GoToTabPayload(index)) => {
+                    Ok(Action::GoToSideTab { index: index as usize })
+                },
+                _ => Err("Wrong payload for Action::GoToSideTab"),
+            },
+            Some(ProtobufActionName::NewSideTab) => match protobuf_action.optional_payload {
+                _payload => Ok(Action::NewSideTab {
+                    layout: None,
+                    name: None,
+                }),
+            },
+            Some(ProtobufActionName::CloseSideTab) => match protobuf_action.optional_payload {
+                Some(_) => Err("CloseSideTab should not have a payload"),
+                None => Ok(Action::CloseSideTab),
+            },
+            Some(ProtobufActionName::ToggleSideBar) => match protobuf_action.optional_payload {
+                Some(_) => Err("ToggleSideBar should not have a payload"),
+                None => Ok(Action::ToggleSideBar),
+            },
             _ => Err("Unknown Action"),
         }
     }
@@ -1916,6 +1946,30 @@ impl TryFrom<Action> for ProtobufAction {
                     )),
                 })
             },
+            Action::GoToNextSideTab => Ok(ProtobufAction {
+                name: ProtobufActionName::GoToNextSideTab as i32,
+                optional_payload: None,
+            }),
+            Action::GoToPreviousSideTab => Ok(ProtobufAction {
+                name: ProtobufActionName::GoToPreviousSideTab as i32,
+                optional_payload: None,
+            }),
+            Action::GoToSideTab { index } => Ok(ProtobufAction {
+                name: ProtobufActionName::GoToSideTab as i32,
+                optional_payload: Some(OptionalPayload::GoToTabPayload(index as u32)),
+            }),
+            Action::NewSideTab { .. } => Ok(ProtobufAction {
+                name: ProtobufActionName::NewSideTab as i32,
+                optional_payload: None,
+            }),
+            Action::CloseSideTab => Ok(ProtobufAction {
+                name: ProtobufActionName::CloseSideTab as i32,
+                optional_payload: None,
+            }),
+            Action::ToggleSideBar => Ok(ProtobufAction {
+                name: ProtobufActionName::ToggleSideBar as i32,
+                optional_payload: None,
+            }),
             Action::NoOp
             | Action::Confirm
             | Action::NewInPlacePluginPane {

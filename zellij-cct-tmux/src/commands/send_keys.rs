@@ -1,4 +1,4 @@
-use crate::{idmap, keys, logger, ready_wait, zellij_bridge};
+use crate::{idmap, keys, logger, ready_wait, tab_resolve, zellij_bridge};
 
 /// tmux send-keys [-t <target>] [-l] <key>...
 pub fn run(args: &[&str]) -> i32 {
@@ -44,8 +44,21 @@ pub fn run(args: &[&str]) -> i32 {
                 }
             }
             None => {
-                eprintln!("bad pane id: {t}");
-                return 1;
+                // Not a pane ID — try tab name resolution
+                if let Some(resolved) = tab_resolve::resolve(t) {
+                    let nav = zellij_bridge::action(&["go-to-tab-name", &resolved.name]);
+                    if nav.code != 0 {
+                        logger::log_msg(&format!(
+                            "send-keys: failed to switch to tab {}",
+                            resolved.name
+                        ));
+                        return 1;
+                    }
+                    (String::new(), None)
+                } else {
+                    eprintln!("bad pane id: {t}");
+                    return 1;
+                }
             }
         }
     } else {

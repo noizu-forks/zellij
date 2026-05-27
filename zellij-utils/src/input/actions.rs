@@ -340,6 +340,17 @@ pub enum Action {
     MoveTab {
         direction: Direction,
     },
+    GoToNextSideTab,
+    GoToPreviousSideTab,
+    GoToSideTab {
+        index: usize,
+    },
+    NewSideTab {
+        layout: Option<PathBuf>,
+        name: Option<String>,
+    },
+    CloseSideTab,
+    ToggleSideBar,
     /// Run specified command in new pane.
     Run {
         command: RunCommandAction,

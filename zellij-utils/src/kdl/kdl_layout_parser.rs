@@ -86,6 +86,7 @@ impl<'a> KdlLayoutParser<'a> {
             || word == "swap_floating_layout"
             || word == "hide_floating_panes"
             || word == "contents_file"
+            || word == "parent_tab_id"
     }
     fn is_a_valid_pane_property(&self, property_name: &str) -> bool {
         property_name == "borderless"
@@ -140,6 +141,7 @@ impl<'a> KdlLayoutParser<'a> {
             || property_name == "min_panes"
             || property_name == "exact_panes"
             || property_name == "hide_floating_panes"
+            || property_name == "parent_tab_id"
     }
     pub fn is_a_reserved_plugin_property(property_name: &str) -> bool {
         property_name == "location"

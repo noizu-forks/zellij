@@ -210,6 +210,7 @@ impl SessionLayoutMetadata {
         hide_floating_panes: bool,
         tiled_panes: Vec<PaneLayoutMetadata>,
         floating_panes: Vec<PaneLayoutMetadata>,
+        parent_tab_id: Option<usize>,
     ) {
         self.tabs.push(TabLayoutMetadata {
             name: Some(name),
@@ -217,6 +218,7 @@ impl SessionLayoutMetadata {
             hide_floating_panes,
             tiled_panes,
             floating_panes,
+            parent_tab_id,
         })
     }
     pub fn all_terminal_ids(&self) -> Vec<u32> {
@@ -498,6 +500,7 @@ impl Into<TabLayoutManifest> for TabLayoutMetadata {
             floating_panes: self.floating_panes.into_iter().map(|t| t.into()).collect(),
             is_focused: self.is_focused,
             hide_floating_panes: self.hide_floating_panes,
+            parent_tab_id: self.parent_tab_id,
         }
     }
 }
@@ -546,6 +549,7 @@ pub struct TabLayoutMetadata {
     floating_panes: Vec<PaneLayoutMetadata>,
     is_focused: bool,
     hide_floating_panes: bool,
+    parent_tab_id: Option<usize>,
 }
 
 #[derive(Debug, Clone)]
@@ -726,7 +730,7 @@ mod tests {
     fn session_with_editor(editor: &str, panes: Vec<PaneLayoutMetadata>) -> SessionLayoutMetadata {
         let mut meta = SessionLayoutMetadata::default();
         meta.default_editor = Some(PathBuf::from(editor));
-        meta.add_tab("tab1".to_string(), true, false, panes, vec![]);
+        meta.add_tab("tab1".to_string(), true, false, panes, vec![], None);
         meta
     }
 

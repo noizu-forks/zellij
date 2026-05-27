@@ -2272,6 +2272,12 @@ pub struct TabInfo {
     pub has_bell_notification: bool,
     /// Whether this tab is currently flashing its bell (transient 400ms state)
     pub is_flashing_bell: bool,
+    /// If set, this tab is a side tab belonging to the parent main tab with this stable ID
+    pub parent_tab_id: Option<usize>,
+    /// Stable emoji identifier for side tabs, seeded from tab ID
+    pub side_tab_emoji: Option<String>,
+    /// Number of side tabs belonging to this main tab (0 for side tabs themselves)
+    pub side_tab_count: usize,
 }
 
 /// The `PaneManifest` contains a dictionary of panes, indexed by the tab position (0 indexed).

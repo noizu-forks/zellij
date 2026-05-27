@@ -1811,6 +1811,9 @@ impl TryFrom<ProtobufTabInfo> for TabInfo {
             tab_id: protobuf_tab_info.tab_id as usize,
             has_bell_notification: protobuf_tab_info.has_bell_notification,
             is_flashing_bell: protobuf_tab_info.is_flashing_bell,
+            parent_tab_id: protobuf_tab_info.parent_tab_id.map(|id| id as usize),
+            side_tab_emoji: protobuf_tab_info.side_tab_emoji,
+            side_tab_count: protobuf_tab_info.side_tab_count as usize,
         })
     }
 }
@@ -1842,6 +1845,9 @@ impl TryFrom<TabInfo> for ProtobufTabInfo {
             tab_id: tab_info.tab_id as u32,
             has_bell_notification: tab_info.has_bell_notification,
             is_flashing_bell: tab_info.is_flashing_bell,
+            parent_tab_id: tab_info.parent_tab_id.map(|id| id as u32),
+            side_tab_emoji: tab_info.side_tab_emoji,
+            side_tab_count: tab_info.side_tab_count as u32,
         })
     }
 }
@@ -2360,6 +2366,9 @@ fn serialize_tab_update_event_with_non_default_values() {
             tab_id: 0,
             has_bell_notification: false,
             is_flashing_bell: false,
+            parent_tab_id: None,
+            side_tab_emoji: None,
+            side_tab_count: 0,
         },
         TabInfo {
             position: 1,
@@ -2381,6 +2390,9 @@ fn serialize_tab_update_event_with_non_default_values() {
             tab_id: 1,
             has_bell_notification: false,
             is_flashing_bell: false,
+            parent_tab_id: None,
+            side_tab_emoji: None,
+            side_tab_count: 0,
         },
         TabInfo::default(),
     ]);
@@ -2657,6 +2669,9 @@ fn serialize_session_update_event_with_non_default_values() {
             tab_id: 0,
             has_bell_notification: false,
             is_flashing_bell: false,
+            parent_tab_id: None,
+            side_tab_emoji: None,
+            side_tab_count: 0,
         },
         TabInfo {
             position: 1,
@@ -2678,6 +2693,9 @@ fn serialize_session_update_event_with_non_default_values() {
             tab_id: 1,
             has_bell_notification: false,
             is_flashing_bell: false,
+            parent_tab_id: None,
+            side_tab_emoji: None,
+            side_tab_count: 0,
         },
         TabInfo::default(),
     ];

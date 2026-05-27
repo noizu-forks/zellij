@@ -73,6 +73,10 @@ macro_rules! parse_kdl_action_arguments {
                 "CloseTab" => Ok(Action::CloseTab),
                 "ToggleTab" => Ok(Action::ToggleTab),
                 "UndoRenameTab" => Ok(Action::UndoRenameTab),
+                "GoToNextSideTab" => Ok(Action::GoToNextSideTab),
+                "GoToPreviousSideTab" => Ok(Action::GoToPreviousSideTab),
+                "CloseSideTab" => Ok(Action::CloseSideTab),
+                "ToggleSideBar" => Ok(Action::ToggleSideBar),
                 "Detach" => Ok(Action::Detach),
                 "SetDarkTheme" => Ok(Action::SetDarkTheme),
                 "SetLightTheme" => Ok(Action::SetLightTheme),
@@ -812,6 +816,22 @@ impl Action {
             },
             Action::GoToNextTab => Some(KdlNode::new("GoToNextTab")),
             Action::GoToPreviousTab => Some(KdlNode::new("GoToPreviousTab")),
+            Action::GoToNextSideTab => Some(KdlNode::new("GoToNextSideTab")),
+            Action::GoToPreviousSideTab => Some(KdlNode::new("GoToPreviousSideTab")),
+            Action::CloseSideTab => Some(KdlNode::new("CloseSideTab")),
+            Action::ToggleSideBar => Some(KdlNode::new("ToggleSideBar")),
+            Action::GoToSideTab { index } => {
+                let mut node = KdlNode::new("GoToSideTab");
+                node.push(KdlEntry::new(*index as i64));
+                Some(node)
+            },
+            Action::NewSideTab { name, .. } => {
+                let mut node = KdlNode::new("NewSideTab");
+                if let Some(name) = name {
+                    node.push(KdlEntry::new_prop("name", KdlValue::String(name.clone())));
+                }
+                Some(node)
+            },
             Action::CloseTab => Some(KdlNode::new("CloseTab")),
             Action::GoToTab { index } => {
                 let mut node = KdlNode::new("GoToTab");
@@ -1577,6 +1597,34 @@ impl TryFrom<(&KdlNode, &Options)> for Action {
             "CloseTab" => parse_kdl_action_arguments!(action_name, action_arguments, kdl_action),
             "ToggleTab" => parse_kdl_action_arguments!(action_name, action_arguments, kdl_action),
             "UndoRenameTab" => {
+                parse_kdl_action_arguments!(action_name, action_arguments, kdl_action)
+            },
+            "GoToNextSideTab" => {
+                parse_kdl_action_arguments!(action_name, action_arguments, kdl_action)
+            },
+            "GoToPreviousSideTab" => {
+                parse_kdl_action_arguments!(action_name, action_arguments, kdl_action)
+            },
+            "GoToSideTab" => {
+                let index = action_arguments
+                    .first()
+                    .and_then(|v| v.value().as_i64())
+                    .ok_or(ConfigError::new_kdl_error(
+                        "GoToSideTab requires an index argument".into(),
+                        kdl_action.span().offset(),
+                        kdl_action.span().len(),
+                    ))?;
+                Ok(Action::GoToSideTab { index: index as usize })
+            },
+            "NewSideTab" => {
+                let name = kdl_get_string_property_or_child_value!(kdl_action, "name")
+                    .map(|s| s.to_string());
+                Ok(Action::NewSideTab { layout: None, name })
+            },
+            "CloseSideTab" => {
+                parse_kdl_action_arguments!(action_name, action_arguments, kdl_action)
+            },
+            "ToggleSideBar" => {
                 parse_kdl_action_arguments!(action_name, action_arguments, kdl_action)
             },
             "ToggleMouseMode" => {
@@ -5871,6 +5919,9 @@ impl TabInfo {
             tab_id,
             has_bell_notification: false,
             is_flashing_bell: false,
+            parent_tab_id: optional_int_node!("parent_tab_id", usize),
+            side_tab_emoji: optional_string_node!("side_tab_emoji"),
+            side_tab_count: 0,
         })
     }
     pub fn encode_to_kdl(&self) -> KdlDocument {
@@ -5951,6 +6002,18 @@ impl TabInfo {
         let mut tab_id = KdlNode::new("tab_id");
         tab_id.push(self.tab_id as i64);
         kdl_doucment.nodes_mut().push(tab_id);
+
+        if let Some(parent_id) = self.parent_tab_id {
+            let mut parent_tab_id_node = KdlNode::new("parent_tab_id");
+            parent_tab_id_node.push(parent_id as i64);
+            kdl_doucment.nodes_mut().push(parent_tab_id_node);
+        }
+
+        if let Some(emoji) = &self.side_tab_emoji {
+            let mut emoji_node = KdlNode::new("side_tab_emoji");
+            emoji_node.push(emoji.clone());
+            kdl_doucment.nodes_mut().push(emoji_node);
+        }
 
         kdl_doucment
     }
@@ -6310,6 +6373,9 @@ fn serialize_and_deserialize_session_info_with_data() {
                 tab_id: 0,
                 is_flashing_bell: false,
                 has_bell_notification: false,
+                parent_tab_id: None,
+                side_tab_emoji: None,
+                side_tab_count: 0,
             },
             TabInfo {
                 position: 1,
@@ -6331,6 +6397,9 @@ fn serialize_and_deserialize_session_info_with_data() {
                 tab_id: 1,
                 is_flashing_bell: false,
                 has_bell_notification: false,
+                parent_tab_id: None,
+                side_tab_emoji: None,
+                side_tab_count: 0,
             },
         ],
         panes: PaneManifest { panes },

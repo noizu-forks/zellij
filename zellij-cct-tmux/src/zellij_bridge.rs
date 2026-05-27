@@ -84,6 +84,11 @@ fn find_zellij() -> &'static str {
     })
 }
 
+/// Return the validated current session name.
+pub fn current_session() -> String {
+    discover_session()
+}
+
 /// Discover the active zellij session name.
 /// ZELLIJ_SESSION_NAME can go stale after upgrades, so we verify and fall back
 /// to listing sessions if needed.
@@ -95,7 +100,10 @@ fn discover_session() -> String {
         // Try the env var first
         if !env_name.is_empty() {
             let check = run_zellij(&["--session", &env_name, "action", "query-tab-names"]);
-            if check.code == 0 {
+            if check.code == 0
+                && !check.stdout.trim().is_empty()
+                && !check.stderr.contains("not found")
+            {
                 return env_name;
             }
             logger::log_msg(&format!(
@@ -103,13 +111,17 @@ fn discover_session() -> String {
             ));
         }
 
-        // Fall back to listing sessions and picking the first active one
-        let list = run_zellij(&["list-sessions", "--short"]);
+        // Fall back: use full list-sessions (not --short) so we can skip EXITED sessions
+        let list = run_zellij(&["list-sessions"]);
         if list.code == 0 {
-            if let Some(name) = list.stdout.lines().next() {
-                let name = name.trim().to_string();
+            for line in list.stdout.lines() {
+                if line.contains("EXITED") {
+                    continue;
+                }
+                let name = strip_ansi(line);
+                let name = name.split_whitespace().next().unwrap_or("").trim().to_string();
                 if !name.is_empty() {
-                    logger::log_msg(&format!("bridge: discovered session: {name}"));
+                    logger::log_msg(&format!("bridge: discovered active session: {name}"));
                     return name;
                 }
             }
@@ -118,6 +130,23 @@ fn discover_session() -> String {
         logger::log_msg("bridge: no zellij session found, using env var as fallback");
         env_name
     }).clone()
+}
+
+fn strip_ansi(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    let mut in_escape = false;
+    for ch in s.chars() {
+        if in_escape {
+            if ch.is_ascii_alphabetic() {
+                in_escape = false;
+            }
+        } else if ch == '\x1b' {
+            in_escape = true;
+        } else {
+            out.push(ch);
+        }
+    }
+    out
 }
 
 fn run_zellij(args: &[&str]) -> BridgeResult {

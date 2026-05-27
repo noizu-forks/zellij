@@ -490,6 +490,16 @@ pub enum ScreenInstruction {
     UndoRenameTab(ClientId, Option<NotificationEnd>),
     MoveTabLeft(ClientId, Option<NotificationEnd>),
     MoveTabRight(ClientId, Option<NotificationEnd>),
+    SwitchSideTabNext(ClientId, Option<NotificationEnd>),
+    SwitchSideTabPrev(ClientId, Option<NotificationEnd>),
+    GoToSideTab(usize, ClientId, Option<NotificationEnd>),
+    NewSideTab(
+        Option<String>,               // name
+        (ClientId, bool),             // bool -> is_web_client
+        Option<NotificationEnd>,
+    ),
+    CloseSideTab(ClientId, Option<NotificationEnd>),
+    ToggleSideBar(ClientId, Option<NotificationEnd>),
     GoToTabWithId(usize, Option<ClientId>, Option<NotificationEnd>),
     CloseTabWithId(usize, Option<NotificationEnd>),
     RenameTabWithId(usize, Vec<u8>, Option<NotificationEnd>),
@@ -978,6 +988,12 @@ impl From<&ScreenInstruction> for ScreenContext {
             ScreenInstruction::UndoRenameTab(..) => ScreenContext::UndoRenameTab,
             ScreenInstruction::MoveTabLeft(..) => ScreenContext::MoveTabLeft,
             ScreenInstruction::MoveTabRight(..) => ScreenContext::MoveTabRight,
+            ScreenInstruction::SwitchSideTabNext(..) => ScreenContext::SwitchSideTabNext,
+            ScreenInstruction::SwitchSideTabPrev(..) => ScreenContext::SwitchSideTabPrev,
+            ScreenInstruction::GoToSideTab(..) => ScreenContext::GoToSideTab,
+            ScreenInstruction::NewSideTab(..) => ScreenContext::NewSideTab,
+            ScreenInstruction::CloseSideTab(..) => ScreenContext::CloseSideTab,
+            ScreenInstruction::ToggleSideBar(..) => ScreenContext::ToggleSideBar,
             ScreenInstruction::GoToTabWithId(..) => ScreenContext::GoToTabWithId,
             ScreenInstruction::CloseTabWithId(..) => ScreenContext::CloseTabWithId,
             ScreenInstruction::RenameTabWithId(..) => ScreenContext::RenameTabWithId,
@@ -1466,6 +1482,7 @@ pub(crate) struct Screen {
     /// Resolved styling to apply when `host_terminal_theme_mode == Light`.
     /// `None` disables auto-switch. Refreshed on each reconfigure.
     host_theme_light_styling: Option<Styling>,
+    active_side_tab_ids: BTreeMap<ClientId, HashMap<usize, usize>>,
 }
 
 /// A pending forward waiting to be dispatched once the current in-flight
@@ -1620,7 +1637,207 @@ impl Screen {
             host_terminal_theme_mode: None,
             host_theme_dark_styling: None,
             host_theme_light_styling: None,
+            active_side_tab_ids: BTreeMap::new(),
         }
+    }
+
+    fn get_main_tab_id_for_client(&self, client_id: ClientId) -> Option<usize> {
+        let active_tab_id = self.active_tab_ids.get(&client_id)?;
+        let tab = self.tabs.get(active_tab_id)?;
+        match tab.parent_tab_id {
+            Some(parent_id) => Some(parent_id),
+            None => Some(tab.id),
+        }
+    }
+
+    fn get_side_tabs_for_parent(&self, parent_id: usize) -> Vec<usize> {
+        let mut side_tabs: Vec<_> = self
+            .tabs
+            .values()
+            .filter(|t| t.parent_tab_id == Some(parent_id))
+            .map(|t| (t.position, t.id))
+            .collect();
+        side_tabs.sort_by_key(|(pos, _)| *pos);
+        side_tabs.into_iter().map(|(_, id)| id).collect()
+    }
+
+    fn switch_to_tab_by_id(&mut self, tab_id: usize, client_id: ClientId) -> Result<()> {
+        if let Some(tab) = self.tabs.get(&tab_id) {
+            let position = tab.position;
+            self.switch_active_tab(position, None, true, client_id)?;
+        }
+        Ok(())
+    }
+
+    fn switch_side_tab_next(&mut self, client_id: ClientId) -> Result<()> {
+        let main_tab_id = match self.get_main_tab_id_for_client(client_id) {
+            Some(id) => id,
+            None => return Ok(()),
+        };
+        let side_tabs = self.get_side_tabs_for_parent(main_tab_id);
+        if side_tabs.is_empty() {
+            return Ok(());
+        }
+        let active_tab_id = *self.active_tab_ids.get(&client_id).unwrap_or(&0);
+        // Cycle: parent → side1 → side2 → ... → parent
+        let next_id = if active_tab_id == main_tab_id {
+            // On parent — go to first side tab
+            side_tabs[0]
+        } else if let Some(idx) = side_tabs.iter().position(|id| *id == active_tab_id) {
+            if idx + 1 < side_tabs.len() {
+                side_tabs[idx + 1]
+            } else {
+                // Last side tab — wrap back to parent
+                main_tab_id
+            }
+        } else {
+            side_tabs[0]
+        };
+        self.switch_to_tab_by_id(next_id, client_id)?;
+        if next_id != main_tab_id {
+            self.active_side_tab_ids
+                .entry(client_id)
+                .or_default()
+                .insert(main_tab_id, next_id);
+        }
+        self.log_and_report_session_state()
+    }
+
+    fn switch_side_tab_prev(&mut self, client_id: ClientId) -> Result<()> {
+        let main_tab_id = match self.get_main_tab_id_for_client(client_id) {
+            Some(id) => id,
+            None => return Ok(()),
+        };
+        let side_tabs = self.get_side_tabs_for_parent(main_tab_id);
+        if side_tabs.is_empty() {
+            return Ok(());
+        }
+        let active_tab_id = *self.active_tab_ids.get(&client_id).unwrap_or(&0);
+        // Cycle: parent ← side1 ← side2 ← ... ← parent
+        let prev_id = if active_tab_id == main_tab_id {
+            // On parent — go to last side tab
+            side_tabs[side_tabs.len() - 1]
+        } else if let Some(idx) = side_tabs.iter().position(|id| *id == active_tab_id) {
+            if idx > 0 {
+                side_tabs[idx - 1]
+            } else {
+                // First side tab — wrap back to parent
+                main_tab_id
+            }
+        } else {
+            side_tabs[side_tabs.len() - 1]
+        };
+        self.switch_to_tab_by_id(prev_id, client_id)?;
+        if prev_id != main_tab_id {
+            self.active_side_tab_ids
+                .entry(client_id)
+                .or_default()
+                .insert(main_tab_id, prev_id);
+        }
+        self.log_and_report_session_state()
+    }
+
+    fn go_to_side_tab(&mut self, index: usize, client_id: ClientId) -> Result<()> {
+        let main_tab_id = match self.get_main_tab_id_for_client(client_id) {
+            Some(id) => id,
+            None => return Ok(()),
+        };
+        let side_tabs = self.get_side_tabs_for_parent(main_tab_id);
+        if let Some(&tab_id) = side_tabs.get(index) {
+            self.switch_to_tab_by_id(tab_id, client_id)?;
+            self.active_side_tab_ids
+                .entry(client_id)
+                .or_default()
+                .insert(main_tab_id, tab_id);
+            self.log_and_report_session_state()?;
+        }
+        Ok(())
+    }
+
+    fn new_side_tab(
+        &mut self,
+        client_id: ClientId,
+        is_web_client: bool,
+        name: Option<String>,
+    ) -> Result<()> {
+        use zellij_utils::emoji::stable_emoji_for_id;
+        use crate::plugins::PluginInstruction;
+
+        let main_tab_id = match self.get_main_tab_id_for_client(client_id) {
+            Some(id) => id,
+            None => return Ok(()),
+        };
+        let side_tab_count = self.get_side_tabs_for_parent(main_tab_id).len();
+        let tab_name = name.unwrap_or_else(|| format!("Side {}", side_tab_count + 1));
+        let new_tab_id = self.get_new_tab_id();
+
+        let swap_layouts = (
+            self.default_layout.swap_tiled_layouts.clone(),
+            self.default_layout.swap_floating_layouts.clone(),
+        );
+
+        self.new_tab(
+            new_tab_id,
+            swap_layouts,
+            Some(tab_name.clone()),
+            Some(client_id),
+        )?;
+
+        if let Some(tab) = self.tabs.get_mut(&new_tab_id) {
+            tab.parent_tab_id = Some(main_tab_id);
+            tab.side_tab_emoji = Some(stable_emoji_for_id(new_tab_id));
+        }
+
+        self.active_side_tab_ids
+            .entry(client_id)
+            .or_default()
+            .insert(main_tab_id, new_tab_id);
+
+        // Trigger the full async layout/PTY creation flow
+        self.bus
+            .senders
+            .send_to_plugin(PluginInstruction::NewTab(
+                None,  // cwd
+                None,  // default_shell
+                None,  // layout (use default)
+                vec![], // floating_panes_layout
+                new_tab_id,
+                None,  // initial_panes
+                false, // block_on_first_terminal
+                true,  // should_change_focus_to_new_tab
+                (client_id, is_web_client),
+                None,  // completion_tx
+            ))?;
+
+        self.log_and_report_session_state()
+    }
+
+    fn close_side_tab(&mut self, client_id: ClientId) -> Result<()> {
+        let active_tab_id = match self.active_tab_ids.get(&client_id) {
+            Some(id) => *id,
+            None => return Ok(()),
+        };
+        let (is_side_tab, parent_id) = match self.tabs.get(&active_tab_id) {
+            Some(t) => (t.parent_tab_id.is_some(), t.parent_tab_id),
+            None => return Ok(()),
+        };
+        if !is_side_tab {
+            return Ok(());
+        }
+        let parent_id = parent_id.unwrap();
+        // Switch to parent before closing
+        self.switch_to_tab_by_id(parent_id, client_id)?;
+        // Remove the side tab tracking
+        if let Some(client_map) = self.active_side_tab_ids.get_mut(&client_id) {
+            client_map.remove(&parent_id);
+        }
+        // Close the side tab
+        self.close_tab_by_id(active_tab_id)?;
+        self.log_and_report_session_state()
+    }
+
+    fn toggle_side_bar(&mut self, client_id: ClientId) -> Result<()> {
+        self.new_side_tab(client_id, false, None)
     }
 
     fn get_new_tab_id(&self) -> usize {
@@ -1920,7 +2137,19 @@ impl Screen {
             match self.get_active_tab(client_id) {
                 Ok(active_tab) => {
                     let active_tab_pos = active_tab.position;
-                    let new_tab_pos = (active_tab_pos + 1) % self.tabs.len();
+                    let tab_count = self.tabs.len();
+                    let mut new_tab_pos = (active_tab_pos + 1) % tab_count;
+                    // Skip side tabs — only land on main tabs
+                    let start = new_tab_pos;
+                    loop {
+                        let is_side = self.tabs.values()
+                            .find(|t| t.position == new_tab_pos)
+                            .map(|t| t.parent_tab_id.is_some())
+                            .unwrap_or(false);
+                        if !is_side { break; }
+                        new_tab_pos = (new_tab_pos + 1) % tab_count;
+                        if new_tab_pos == start { break; }
+                    }
                     return self.switch_active_tab(
                         new_tab_pos,
                         should_change_pane_focus,
@@ -1953,11 +2182,23 @@ impl Screen {
             match self.get_active_tab(client_id) {
                 Ok(active_tab) => {
                     let active_tab_pos = active_tab.position;
-                    let new_tab_pos = if active_tab_pos == 0 {
-                        self.tabs.len() - 1
+                    let tab_count = self.tabs.len();
+                    let mut new_tab_pos = if active_tab_pos == 0 {
+                        tab_count - 1
                     } else {
                         active_tab_pos - 1
                     };
+                    // Skip side tabs — only land on main tabs
+                    let start = new_tab_pos;
+                    loop {
+                        let is_side = self.tabs.values()
+                            .find(|t| t.position == new_tab_pos)
+                            .map(|t| t.parent_tab_id.is_some())
+                            .unwrap_or(false);
+                        if !is_side { break; }
+                        new_tab_pos = if new_tab_pos == 0 { tab_count - 1 } else { new_tab_pos - 1 };
+                        if new_tab_pos == start { break; }
+                    }
 
                     return self.switch_active_tab(
                         new_tab_pos,
@@ -3223,6 +3464,15 @@ impl Screen {
     pub fn generate_and_report_tab_state(&mut self) -> Result<Vec<TabInfo>> {
         let mut plugin_updates = vec![];
         let mut tab_infos_for_screen_state = BTreeMap::new();
+        let side_tab_counts: HashMap<usize, usize> = {
+            let mut counts = HashMap::new();
+            for tab in self.tabs.values() {
+                if let Some(parent_id) = tab.parent_tab_id {
+                    *counts.entry(parent_id).or_insert(0) += 1;
+                }
+            }
+            counts
+        };
         for tab in self.tabs.values() {
             let all_focused_clients: Vec<ClientId> = self
                 .active_tab_ids
@@ -3258,6 +3508,9 @@ impl Screen {
                     && !self.active_tab_ids.values().any(|i| i == &tab.id),
                 is_flashing_bell: tab.tab_bell_flash
                     && !self.active_tab_ids.values().any(|i| i == &tab.id),
+                parent_tab_id: tab.parent_tab_id,
+                side_tab_emoji: tab.side_tab_emoji.clone(),
+                side_tab_count: side_tab_counts.get(&tab.id).copied().unwrap_or(0),
             };
             tab_infos_for_screen_state.insert(tab.position, tab_info_for_screen);
         }
@@ -3301,16 +3554,60 @@ impl Screen {
                     tab_id: tab.id,
                     has_bell_notification: tab.tab_has_pending_bell && *active_tab_index != tab.id,
                     is_flashing_bell: tab.tab_bell_flash && *active_tab_index != tab.id,
+                    parent_tab_id: tab.parent_tab_id,
+                    side_tab_emoji: tab.side_tab_emoji.clone(),
+                    side_tab_count: side_tab_counts.get(&tab.id).copied().unwrap_or(0),
                 };
                 plugin_tab_updates.push(tab_info_for_plugins);
             }
             plugin_tab_updates.sort_by(|a, b| a.position.cmp(&b.position));
+
+            // Collect side tab info per parent before filtering
+            let active_side_tab_id = plugin_tab_updates.iter()
+                .find(|t| t.active && t.parent_tab_id.is_some())
+                .map(|t| (t.parent_tab_id.unwrap(), t.tab_id));
+
+            // Group side tabs by parent
+            let mut side_tabs_by_parent: HashMap<usize, Vec<(String, usize, bool)>> = HashMap::new();
+            for tab in plugin_tab_updates.iter() {
+                if let Some(parent_id) = tab.parent_tab_id {
+                    let emoji = tab.side_tab_emoji.clone().unwrap_or_else(|| "?".to_string());
+                    let is_active = tab.active;
+                    side_tabs_by_parent
+                        .entry(parent_id)
+                        .or_default()
+                        .push((emoji, tab.tab_id, is_active));
+                }
+            }
+
+            let mut main_tab_updates: Vec<TabInfo> = plugin_tab_updates.into_iter()
+                .filter(|t| t.parent_tab_id.is_none())
+                .collect();
+
+            // Mark parent active when child side tab is focused, embed emoji sidebar in name
+            for tab in main_tab_updates.iter_mut() {
+                if let Some((parent_id, _)) = active_side_tab_id {
+                    if tab.tab_id == parent_id {
+                        tab.active = true;
+                    }
+                }
+                if let Some(side_tabs) = side_tabs_by_parent.get(&tab.tab_id) {
+                    let emoji_bar: String = side_tabs.iter()
+                        .map(|(emoji, _, is_active)| {
+                            if *is_active { format!("[{}]", emoji) } else { emoji.clone() }
+                        })
+                        .collect::<Vec<_>>()
+                        .join("");
+                    tab.name = format!("{} {}", tab.name, emoji_bar);
+                }
+            }
+
             let target_plugin_ids = self.targeted_plugin_ids(*client_id, EventType::TabUpdate);
             for plugin_id in target_plugin_ids {
                 plugin_updates.push((
                     Some(plugin_id),
                     Some(*client_id),
-                    Event::TabUpdate(plugin_tab_updates.clone()),
+                    Event::TabUpdate(main_tab_updates.clone()),
                 ));
             }
         }
@@ -5147,6 +5444,7 @@ impl Screen {
                 hide_floating_panes,
                 tiled_panes,
                 floating_panes,
+                tab.parent_tab_id,
             );
         }
         session_layout_metadata
@@ -5267,6 +5565,13 @@ impl Screen {
                     && !self.active_tab_ids.values().any(|i| i == &tab.id),
                 is_flashing_bell: tab.tab_bell_flash
                     && !self.active_tab_ids.values().any(|i| i == &tab.id),
+                parent_tab_id: tab.parent_tab_id,
+                side_tab_emoji: tab.side_tab_emoji.clone(),
+                side_tab_count: self
+                    .tabs
+                    .values()
+                    .filter(|t| t.parent_tab_id == Some(tab.id))
+                    .count(),
             }
         })
     }
@@ -7334,6 +7639,30 @@ pub(crate) fn screen_thread_main(
                     pending_events_waiting_for_tab
                         .push(ScreenInstruction::MoveTabRight(client_id, completion_tx));
                 }
+            },
+            ScreenInstruction::SwitchSideTabNext(client_id, _completion_tx) => {
+                screen.switch_side_tab_next(client_id)?;
+                screen.render(None)?;
+            },
+            ScreenInstruction::SwitchSideTabPrev(client_id, _completion_tx) => {
+                screen.switch_side_tab_prev(client_id)?;
+                screen.render(None)?;
+            },
+            ScreenInstruction::GoToSideTab(index, client_id, _completion_tx) => {
+                screen.go_to_side_tab(index, client_id)?;
+                screen.render(None)?;
+            },
+            ScreenInstruction::NewSideTab(name, (client_id, is_web_client), _completion_tx) => {
+                screen.new_side_tab(client_id, is_web_client, name)?;
+                screen.render(None)?;
+            },
+            ScreenInstruction::CloseSideTab(client_id, _completion_tx) => {
+                screen.close_side_tab(client_id)?;
+                screen.render(None)?;
+            },
+            ScreenInstruction::ToggleSideBar(client_id, _completion_tx) => {
+                screen.toggle_side_bar(client_id)?;
+                screen.render(None)?;
             },
             ScreenInstruction::TerminalResize(new_size) => {
                 screen.resize_to_screen(new_size)?;

@@ -627,6 +627,12 @@ pub struct TabInfo {
     pub has_bell_notification: bool,
     #[prost(bool, tag="19")]
     pub is_flashing_bell: bool,
+    #[prost(uint32, optional, tag="20")]
+    pub parent_tab_id: ::core::option::Option<u32>,
+    #[prost(string, optional, tag="21")]
+    pub side_tab_emoji: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(uint32, tag="22")]
+    pub side_tab_count: u32,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]

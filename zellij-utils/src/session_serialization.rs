@@ -25,6 +25,7 @@ pub struct TabLayoutManifest {
     pub floating_panes: Vec<PaneLayoutManifest>,
     pub is_focused: bool,
     pub hide_floating_panes: bool,
+    pub parent_tab_id: Option<usize>,
 }
 
 #[derive(Default, Debug, Clone)]
@@ -86,6 +87,7 @@ fn serialize_tab(
     tab_name: String,
     is_focused: bool,
     hide_floating_panes: bool,
+    parent_tab_id: Option<usize>,
     tiled_panes: &Vec<PaneLayoutManifest>,
     floating_panes: &Vec<PaneLayoutManifest>,
     pane_contents: &mut BTreeMap<String, String>,
@@ -115,6 +117,12 @@ fn serialize_tab(
                 serialized_tab.entries_mut().push(KdlEntry::new_prop(
                     "hide_floating_panes",
                     KdlValue::Bool(true),
+                ));
+            }
+            if let Some(parent_id) = parent_tab_id {
+                serialized_tab.entries_mut().push(KdlEntry::new_prop(
+                    "parent_tab_id",
+                    KdlValue::Base10(parent_id as i64),
                 ));
             }
 
@@ -632,10 +640,12 @@ fn serialize_multiple_tabs(
         let tiled_panes = tab_layout_manifest.tiled_panes;
         let floating_panes = tab_layout_manifest.floating_panes;
         let hide_floating_panes = tab_layout_manifest.hide_floating_panes;
+        let parent_tab_id = tab_layout_manifest.parent_tab_id;
         let serialized = serialize_tab(
             tab_name.clone(),
             tab_layout_manifest.is_focused,
             hide_floating_panes,
+            parent_tab_id,
             &tiled_panes,
             &floating_panes,
             pane_contents,

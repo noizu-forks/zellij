@@ -1,0 +1,10 @@
+[package]
+name = "side-bar"
+version = "0.1.0"
+authors = ["Keith Brings <keith.brings@noizu.com>"]
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+zellij-tile = { path = "../../zellij-tile" }
+zellij-tile-utils = { path = "../../zellij-tile-utils" }

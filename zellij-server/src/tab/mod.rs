@@ -227,6 +227,8 @@ pub(crate) struct Tab {
     pub tab_has_pending_bell: bool,
     pub tab_bell_flash: bool, // currently in mid-notification-flash
     pub tab_bell_ring: bool,  // need to send ANSI BEL to the controlling terminal
+    pub parent_tab_id: Option<usize>,
+    pub side_tab_emoji: Option<String>,
 }
 
 // FIXME: Use a struct that has a pane_type enum, to reduce all of the duplication
@@ -879,6 +881,8 @@ impl Tab {
             tab_has_pending_bell: false,
             tab_bell_flash: false,
             tab_bell_ring: false,
+            parent_tab_id: None,
+            side_tab_emoji: None,
         }
     }
 

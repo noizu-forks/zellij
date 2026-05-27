@@ -277,6 +277,12 @@ message Action {
     SetDarkThemeAction set_dark_theme = 137;
     SetLightThemeAction set_light_theme = 138;
     ToggleThemeAction toggle_theme = 139;
+    GoToNextSideTabAction go_to_next_side_tab = 140;
+    GoToPreviousSideTabAction go_to_previous_side_tab = 141;
+    GoToSideTabAction go_to_side_tab = 142;
+    NewSideTabAction new_side_tab = 143;
+    CloseSideTabAction close_side_tab = 144;
+    ToggleSideBarAction toggle_side_bar = 145;
   }
 }
 
@@ -328,6 +334,16 @@ message DetachAction {}
 message SetDarkThemeAction {}
 message SetLightThemeAction {}
 message ToggleThemeAction {}
+message GoToNextSideTabAction {}
+message GoToPreviousSideTabAction {}
+message GoToSideTabAction {
+  uint32 index = 1;
+}
+message NewSideTabAction {
+  optional string name = 1;
+}
+message CloseSideTabAction {}
+message ToggleSideBarAction {}
 message CopyAction {}
 message ConfirmAction {}
 message DenyAction {}

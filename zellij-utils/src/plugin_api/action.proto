@@ -493,6 +493,12 @@ enum ActionName {
     SetDarkTheme = 101;
     SetLightTheme = 102;
     ToggleTheme = 103;
+    GoToNextSideTab = 104;
+    GoToPreviousSideTab = 105;
+    GoToSideTab = 106;
+    NewSideTab = 107;
+    CloseSideTab = 108;
+    ToggleSideBar = 109;
 }
 
 message Position {
