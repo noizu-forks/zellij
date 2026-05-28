@@ -1,4 +1,5 @@
 use crate::format::{self, FormatContext};
+use crate::tab_resolve;
 
 /// tmux display-message [-t <target>] [-p] [<format>]
 pub fn run(args: &[&str]) -> i32 {
@@ -25,8 +26,11 @@ pub fn run(args: &[&str]) -> i32 {
 
     let template = template.unwrap_or("");
 
+    let window_name = tab_resolve::query_tabs()
+        .and_then(|tabs| tabs.into_iter().next())
+        .map(|t| t.name);
+
     let ctx = if let Some(t) = target {
-        // If a target pane is specified, use its ID in the context
         let pane_id = if t.starts_with('%') {
             t.to_string()
         } else {
@@ -34,10 +38,14 @@ pub fn run(args: &[&str]) -> i32 {
         };
         FormatContext {
             pane_id: Some(pane_id),
+            window_name,
             ..Default::default()
         }
     } else {
-        FormatContext::default()
+        FormatContext {
+            window_name,
+            ..Default::default()
+        }
     };
 
     let expanded = format::expand(template, &ctx);

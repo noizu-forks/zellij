@@ -52,7 +52,7 @@ impl Default for FormatContext {
             window_id: Some("@0".into()),
             window_name: None,
             pane_title: None,
-            socket_path: None,
+            socket_path: Some("/tmp/zellij-cct-socket".into()),
             pid: Some(std::process::id()),
         }
     }

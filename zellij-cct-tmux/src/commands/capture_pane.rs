@@ -1,4 +1,4 @@
-use crate::{idmap, logger, zellij_bridge};
+use crate::{idmap, logger, tab_resolve, zellij_bridge};
 
 /// tmux capture-pane [-p] [-t <target>] [-S -<n>] [-e]
 pub fn run(args: &[&str]) -> i32 {
@@ -35,6 +35,18 @@ pub fn run(args: &[&str]) -> i32 {
                 zellij_id = z.to_string();
                 action_args.extend_from_slice(&["--pane-id", &zellij_id]);
             }
+        } else if let Some(resolved) = tab_resolve::resolve(t) {
+            let nav = zellij_bridge::action(&["go-to-tab-name", &resolved.name]);
+            if nav.code != 0 {
+                logger::log_msg(&format!(
+                    "capture-pane: failed to switch to tab {}",
+                    resolved.name
+                ));
+                return 1;
+            }
+        } else {
+            eprintln!("bad target: {t}");
+            return 1;
         }
     }
 

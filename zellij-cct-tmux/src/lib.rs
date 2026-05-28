@@ -5,6 +5,7 @@ pub mod idmap;
 pub mod keys;
 pub mod logger;
 pub mod ready_wait;
+pub mod tab_resolve;
 pub mod zellij_bridge;
 
 use std::env;

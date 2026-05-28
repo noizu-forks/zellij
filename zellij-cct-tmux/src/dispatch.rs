@@ -71,6 +71,9 @@ pub fn run(global_flags: &GlobalFlags, args: &[&str]) -> i32 {
         // --- Milestone 2: session/window/styling ---
         "new-session" => commands::new_session::run(subcmd_args),
         "new-window" => commands::new_window::run(subcmd_args),
+        "kill-window" => commands::kill_window::run(subcmd_args),
+        "select-window" | "selectw" => commands::select_window::run(subcmd_args),
+        "rename-window" => commands::rename_window::run(subcmd_args),
         "list-windows" => commands::list_windows::run(subcmd_args),
         "select-pane" => commands::select_pane::run(subcmd_args),
         "set-option" | "set" => commands::set_option::run(subcmd_args),
@@ -86,7 +89,6 @@ pub fn run(global_flags: &GlobalFlags, args: &[&str]) -> i32 {
         // --- Stubs (remaining) ---
         "kill-server" => commands::stub::run(subcmd, subcmd_args),
         "set-environment" | "setenv" => commands::stub::run(subcmd, subcmd_args),
-        "rename-window" => commands::stub::run(subcmd, subcmd_args),
         "display-menu" => commands::stub::run(subcmd, subcmd_args),
         "bind-key" | "bind" => commands::stub::run(subcmd, subcmd_args),
         "unbind-key" | "unbind" => commands::stub::run(subcmd, subcmd_args),

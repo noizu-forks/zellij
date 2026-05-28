@@ -16,8 +16,15 @@ pub fn run(args: &[&str]) -> i32 {
         i += 1;
     }
 
-    let Some(session_name) = target else {
-        return 1;
+    let session_name = match target {
+        Some(name) => name.to_string(),
+        None => {
+            let discovered = zellij_bridge::current_session();
+            if discovered.is_empty() {
+                return 1;
+            }
+            discovered
+        }
     };
 
     let result = zellij_bridge::command(&["list-sessions", "--short"]);
