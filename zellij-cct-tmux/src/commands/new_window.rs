@@ -7,6 +7,7 @@ pub fn run(args: &[&str]) -> i32 {
     let mut cwd: Option<String> = None;
     let mut print_info = false;
     let mut format_str: Option<&str> = None;
+    let mut detached = false;
     let mut i = 0;
 
     while i < args.len() {
@@ -28,10 +29,14 @@ pub fn run(args: &[&str]) -> i32 {
                 i += 1;
                 format_str = Some(args[i]);
             }
+            "-d" => detached = true,
             _ => {}
         }
         i += 1;
     }
+
+    // For -d, remember the currently active tab to restore later
+    let previously_active = tab_resolve::active_tab();
 
     let mut action_args = vec!["new-tab"];
     if let Some(ref name) = window_name {
@@ -72,6 +77,40 @@ pub fn run(args: &[&str]) -> i32 {
             }
         },
     };
+
+    // Capture the active pane ID for this tab and store it in winmap
+    if !tab_name.is_empty() {
+        if let Some(pane_id) = zellij_bridge::active_pane_for_tab(&tab_name) {
+            let mut winmap = winmap::WinMap::load();
+            let win_id = winmap.id_for(&tab_name);
+            winmap.set_active_pane(win_id, &pane_id);
+            logger::log_msg(&format!(
+                "new-window: mapped window @{win_id} ({}) to pane {}",
+                tab_name, pane_id
+            ));
+        } else {
+            logger::log_msg(&format!(
+                "new-window: could not find active pane for tab {}",
+                tab_name
+            ));
+        }
+    }
+
+    // Restore previous tab if -d was specified
+    if detached {
+        if let Some(prev_tab) = previously_active {
+            if prev_tab.name != tab_name {
+                let nav = zellij_bridge::action(&["go-to-tab-name", &prev_tab.name]);
+                if nav.code != 0 {
+                    logger::log_msg(&format!(
+                        "new-window: failed to restore previous tab {}: {}",
+                        prev_tab.name,
+                        nav.stderr.trim()
+                    ));
+                }
+            }
+        }
+    }
 
     let mut winmap = winmap::WinMap::load();
     let win_id = winmap.id_for(&tab_name);

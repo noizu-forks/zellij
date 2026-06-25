@@ -1,5 +1,6 @@
 use crate::{logger, winmap, zellij_bridge};
 
+#[derive(Debug)]
 pub struct ResolvedTab {
     pub position: u32,
     pub name: String,

@@ -9,12 +9,18 @@ use std::path::PathBuf;
 /// index shuffles. Zellij has no such handle — tabs are addressed by name or
 /// live position — so we mint our own stable ids here and translate back to a
 /// tab name when a window target needs to be resolved.
+///
+/// We also track the active pane_id for each tab to enable headless targeting
+/// of send-keys and capture-pane to specific windows/tabs even when detached.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct WinEntry {
     tmux_id: u32,
     tab_name: String,
     #[serde(default)]
     tombstoned: bool,
+    /// The zellij terminal_N id of the first/active pane in this tab
+    #[serde(default)]
+    active_pane_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -64,6 +70,7 @@ impl WinMap {
             tmux_id,
             tab_name: tab_name.to_string(),
             tombstoned: false,
+            active_pane_id: None,
         });
         self.save();
         tmux_id
@@ -87,6 +94,37 @@ impl WinMap {
             .find(|e| e.tab_name == old_name && !e.tombstoned)
         {
             entry.tab_name = new_name.to_string();
+            self.save();
+        }
+    }
+
+    /// Get the active pane_id for a window by its tmux id.
+    pub fn active_pane_for(&self, tmux_id: u32) -> Option<String> {
+        self.data
+            .entries
+            .iter()
+            .find(|e| e.tmux_id == tmux_id && !e.tombstoned)
+            .and_then(|e| e.active_pane_id.clone())
+    }
+
+    /// Get the active pane_id for a window by its tab name.
+    pub fn active_pane_for_name(&self, tab_name: &str) -> Option<String> {
+        self.data
+            .entries
+            .iter()
+            .find(|e| e.tab_name == tab_name && !e.tombstoned)
+            .and_then(|e| e.active_pane_id.clone())
+    }
+
+    /// Set the active pane_id for a window by its tmux id.
+    pub fn set_active_pane(&mut self, tmux_id: u32, pane_id: &str) {
+        if let Some(entry) = self
+            .data
+            .entries
+            .iter_mut()
+            .find(|e| e.tmux_id == tmux_id && !e.tombstoned)
+        {
+            entry.active_pane_id = Some(pane_id.to_string());
             self.save();
         }
     }

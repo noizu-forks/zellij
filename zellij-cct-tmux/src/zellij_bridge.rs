@@ -265,3 +265,46 @@ pub fn parse_zellij_pane_id(s: &str) -> Option<&str> {
         None
     }
 }
+
+/// Get the active pane_id for a specific tab by name.
+/// Returns None if the tab doesn't exist or has no panes.
+pub fn active_pane_for_tab(tab_name: &str) -> Option<String> {
+    let result = action(&["list-panes", "--tab", tab_name]);
+    if result.code != 0 {
+        return None;
+    }
+
+    // Parse the tab's pane list in JSON format
+    if let Ok(panes) = serde_json::from_str::<Vec<serde_json::Value>>(&result.stdout) {
+        return panes
+            .first()
+            .and_then(|pane| pane.get("id"))
+            .and_then(|id| id.as_str())
+            .map(|s| s.to_string());
+    }
+
+    None
+}
+
+/// Get the currently active pane_id in the focused pane.
+pub fn active_focused_pane() -> Option<String> {
+    let result = action(&["list-panes", "--current-false"]);
+    if result.code != 0 {
+        return None;
+    }
+
+    if let Ok(panes) = serde_json::from_str::<Vec<serde_json::Value>>(&result.stdout) {
+        return panes
+            .iter()
+            .find(|pane| {
+                pane.get("is_focused")
+                    .and_then(|v| v.as_bool())
+                    .unwrap_or(false)
+            })
+            .and_then(|pane| pane.get("id"))
+            .and_then(|id| id.as_str())
+            .map(|s| s.to_string());
+    }
+
+    None
+}

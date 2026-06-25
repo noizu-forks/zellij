@@ -1,4 +1,4 @@
-use crate::{logger, tab_resolve, zellij_bridge};
+use crate::{logger, tab_resolve, winmap, zellij_bridge};
 
 /// tmux kill-window [-t <target>]
 pub fn run(args: &[&str]) -> i32 {
@@ -27,14 +27,58 @@ pub fn run(args: &[&str]) -> i32 {
         return 1;
     };
 
-    // Navigate to the tab first — close-tab has no --index flag
-    let nav = zellij_bridge::action(&["go-to-tab-name", &resolved.name]);
-    if nav.code != 0 {
+    // Try headless close via pane-id first to avoid race condition
+    // and to work on detached sessions
+    if let Some(pane_id) = winmap::WinMap::load().active_pane_for_name(&resolved.name) {
+        logger::log_msg(&format!("kill-window: closing tab {} via pane {}", resolved.name, pane_id));
+        let result = zellij_bridge::action(&["close-pane", "--pane-id", &pane_id]);
+        if result.code == 0 {
+            // Mark the window as tombstoned in winmap
+            let mut winmap = winmap::WinMap::load();
+            winmap.tombstone_name(&resolved.name);
+            return 0;
+        }
+        // Fall through to focus-based approach if pane-id close fails
         logger::log_msg(&format!(
-            "kill-window: go-to-tab-name failed: {}",
-            nav.stderr.trim()
+            "kill-window: close-pane for {} failed, trying focus-based close: {}",
+            resolved.name,
+            result.stderr.trim()
         ));
-        return 1;
+    }
+
+    // Verify the active tab is our target before closing (race fix)
+    let current_tab = tab_resolve::active_tab();
+    let is_current_target = current_tab
+        .as_ref()
+        .map(|tab| tab.name == resolved.name)
+        .unwrap_or(false);
+
+    if !is_current_target {
+        // Navigate to the target tab first
+        let nav = zellij_bridge::action(&["go-to-tab-name", &resolved.name]);
+        if nav.code != 0 {
+            logger::log_msg(&format!(
+                "kill-window: go-to-tab-name failed: {}",
+                nav.stderr.trim()
+            ));
+            return 1;
+        }
+
+        // Verify we made it to the target tab (race detection)
+        let after_nav = tab_resolve::active_tab();
+        let nav_success = after_nav
+            .as_ref()
+            .map(|tab| tab.name == resolved.name)
+            .unwrap_or(false);
+
+        if !nav_success {
+            logger::log_msg(&format!(
+                "kill-window: race condition detected — active tab after nav was {:?} not {}",
+                after_nav, resolved.name
+            ));
+            eprintln!("can't kill window {t}: tab switched during operation");
+            return 1;
+        }
     }
 
     let result = zellij_bridge::action(&["close-tab"]);
@@ -45,6 +89,10 @@ pub fn run(args: &[&str]) -> i32 {
         ));
         return 1;
     }
+
+    // Mark the window as tombstoned
+    let mut winmap = winmap::WinMap::load();
+    winmap.tombstone_name(&resolved.name);
 
     0
 }
