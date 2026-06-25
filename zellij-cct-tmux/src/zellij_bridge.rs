@@ -89,15 +89,42 @@ pub fn current_session() -> String {
     discover_session()
 }
 
-/// Discover the active zellij session name.
-/// ZELLIJ_SESSION_NAME can go stale after upgrades, so we verify and fall back
-/// to listing sessions if needed.
+/// Discover the live zellij session to drive.
+///
+/// `ZELLIJ_SESSION_NAME` (and the session embedded in `TMUX`) can go stale —
+/// the named session may have exited while a different one is now attached. A
+/// blind "first active session" fallback is dangerous: it can land on a
+/// detached build leftover, where focus-based actions (`go-to-tab-name`,
+/// `write-chars`, `dump-screen`) silently no-op because no client is driving.
+///
+/// Resolution order, most reliable first:
+///   1. The active session whose attached client owns *our* pane
+///      (`ZELLIJ_PANE_ID`) — this is unambiguously the caller's session.
+///   2. `ZELLIJ_SESSION_NAME`, if it still resolves.
+///   3. Any active session with an attached client.
+///   4. First active (non-EXITED) session.
 fn discover_session() -> String {
     static SESSION: OnceLock<String> = OnceLock::new();
     SESSION.get_or_init(|| {
         let env_name = env::var("ZELLIJ_SESSION_NAME").unwrap_or_default();
+        let actives = active_sessions();
 
-        // Try the env var first
+        // 1. Match our own pane to an attached client.
+        if let Ok(pane) = env::var("ZELLIJ_PANE_ID") {
+            let want = format!("terminal_{pane}");
+            for s in &actives {
+                if client_panes(s).iter().any(|p| p == &want || p == &pane) {
+                    if *s != env_name {
+                        logger::log_msg(&format!(
+                            "bridge: ZELLIJ_SESSION_NAME={env_name} stale; our pane is in attached session {s}"
+                        ));
+                    }
+                    return s.clone();
+                }
+            }
+        }
+
+        // 2. Trust the env var if it still resolves.
         if !env_name.is_empty() {
             let check = run_zellij(&["--session", &env_name, "action", "query-tab-names"]);
             if check.code == 0
@@ -111,25 +138,65 @@ fn discover_session() -> String {
             ));
         }
 
-        // Fall back: use full list-sessions (not --short) so we can skip EXITED sessions
-        let list = run_zellij(&["list-sessions"]);
-        if list.code == 0 {
-            for line in list.stdout.lines() {
-                if line.contains("EXITED") {
-                    continue;
-                }
-                let name = strip_ansi(line);
-                let name = name.split_whitespace().next().unwrap_or("").trim().to_string();
-                if !name.is_empty() {
-                    logger::log_msg(&format!("bridge: discovered active session: {name}"));
-                    return name;
-                }
+        // 3. Any active session with an attached client.
+        for s in &actives {
+            if !client_panes(s).is_empty() {
+                logger::log_msg(&format!("bridge: discovered attached session: {s}"));
+                return s.clone();
             }
+        }
+
+        // 4. First active session.
+        if let Some(s) = actives.first() {
+            logger::log_msg(&format!("bridge: no attached session; using first active: {s}"));
+            return s.clone();
         }
 
         logger::log_msg("bridge: no zellij session found, using env var as fallback");
         env_name
     }).clone()
+}
+
+/// Names of active (non-EXITED) zellij sessions, in listing order.
+fn active_sessions() -> Vec<String> {
+    let list = run_zellij(&["list-sessions"]);
+    if list.code != 0 {
+        return Vec::new();
+    }
+    list.stdout
+        .lines()
+        .filter(|line| !line.contains("EXITED"))
+        .filter_map(|line| {
+            strip_ansi(line)
+                .split_whitespace()
+                .next()
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty())
+        })
+        .collect()
+}
+
+/// The `ZELLIJ_PANE_ID` of each client attached to `session` (e.g. `terminal_0`).
+/// Empty when the session is detached or unreachable.
+fn client_panes(session: &str) -> Vec<String> {
+    let result = run_zellij(&["--session", session, "action", "list-clients"]);
+    if result.code != 0 {
+        return Vec::new();
+    }
+    result
+        .stdout
+        .lines()
+        .skip(1) // CLIENT_ID ZELLIJ_PANE_ID RUNNING_COMMAND header
+        .filter_map(|line| {
+            let mut cols = line.split_whitespace();
+            let id = cols.next()?;
+            // Real client rows start with a numeric CLIENT_ID; ANSI/error lines don't.
+            if !id.chars().all(|c| c.is_ascii_digit()) {
+                return None;
+            }
+            cols.next().map(|p| p.to_string())
+        })
+        .collect()
 }
 
 fn strip_ansi(s: &str) -> String {

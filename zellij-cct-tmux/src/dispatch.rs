@@ -64,7 +64,7 @@ pub fn run(global_flags: &GlobalFlags, args: &[&str]) -> i32 {
         "split-window" => commands::split_window::run(subcmd_args),
         "send-keys" => commands::send_keys::run(subcmd_args),
         "kill-pane" => commands::kill_pane::run(subcmd_args),
-        "list-panes" => commands::list_panes::run(subcmd_args),
+        "list-panes" | "lsp" => commands::list_panes::run(subcmd_args),
         "display-message" => commands::display_message::run(subcmd_args),
         "has-session" => commands::has_session::run(subcmd_args),
 
@@ -74,7 +74,7 @@ pub fn run(global_flags: &GlobalFlags, args: &[&str]) -> i32 {
         "kill-window" => commands::kill_window::run(subcmd_args),
         "select-window" | "selectw" => commands::select_window::run(subcmd_args),
         "rename-window" => commands::rename_window::run(subcmd_args),
-        "list-windows" => commands::list_windows::run(subcmd_args),
+        "list-windows" | "lsw" => commands::list_windows::run(subcmd_args),
         "select-pane" => commands::select_pane::run(subcmd_args),
         "set-option" | "set" => commands::set_option::run(subcmd_args),
         "select-layout" => commands::select_layout::run(subcmd_args),
@@ -83,8 +83,8 @@ pub fn run(global_flags: &GlobalFlags, args: &[&str]) -> i32 {
         "join-pane" => commands::join_pane::run(subcmd_args),
 
         // --- Milestone 3: additional real handlers ---
-        "list-sessions" => commands::list_sessions::run(subcmd_args),
-        "capture-pane" => commands::capture_pane::run(subcmd_args),
+        "list-sessions" | "ls" => commands::list_sessions::run(subcmd_args),
+        "capture-pane" | "capturep" => commands::capture_pane::run(subcmd_args),
 
         // --- Stubs (remaining) ---
         "kill-server" => commands::stub::run(subcmd, subcmd_args),

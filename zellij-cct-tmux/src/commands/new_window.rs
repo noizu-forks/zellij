@@ -1,9 +1,10 @@
-use crate::{format, idmap, logger, zellij_bridge};
+use crate::{format, logger, tab_resolve, winmap, zellij_bridge};
 
-/// tmux new-window [-t <session>] [-n <name>] [-P] [-F <format>]
+/// tmux new-window [-d] [-t <session>] [-n <name>] [-c <dir>] [-P] [-F <format>]
 pub fn run(args: &[&str]) -> i32 {
     let mut _target: Option<&str> = None;
     let mut window_name: Option<String> = None;
+    let mut cwd: Option<String> = None;
     let mut print_info = false;
     let mut format_str: Option<&str> = None;
     let mut i = 0;
@@ -18,6 +19,10 @@ pub fn run(args: &[&str]) -> i32 {
                 i += 1;
                 window_name = Some(args[i].to_string());
             }
+            "-c" if i + 1 < args.len() => {
+                i += 1;
+                cwd = Some(args[i].to_string());
+            }
             "-P" => print_info = true,
             "-F" if i + 1 < args.len() => {
                 i += 1;
@@ -29,10 +34,11 @@ pub fn run(args: &[&str]) -> i32 {
     }
 
     let mut action_args = vec!["new-tab"];
-    let name_owned;
     if let Some(ref name) = window_name {
-        name_owned = name.clone();
-        action_args.extend_from_slice(&["--name", &name_owned]);
+        action_args.extend_from_slice(&["--name", name]);
+    }
+    if let Some(ref dir) = cwd {
+        action_args.extend_from_slice(&["--cwd", dir]);
     }
 
     let result = zellij_bridge::action(&action_args);
@@ -44,21 +50,44 @@ pub fn run(args: &[&str]) -> i32 {
         return 1;
     }
 
-    let pane_id_str = result.stdout.trim();
-    if print_info && !pane_id_str.is_empty() {
-        let mut idmap = idmap::IdMap::load();
-        let tmux_id = idmap.allocate(pane_id_str);
-
-        if let Some(fmt) = format_str {
-            let ctx = format::FormatContext {
-                pane_id: Some(format!("%{tmux_id}")),
-                window_name: window_name.clone(),
-                ..Default::default()
-            };
-            println!("{}", format::expand(fmt, &ctx));
-        } else {
-            println!("%{tmux_id}");
+    // Determine the tab we just created. With -n we know the name; otherwise the
+    // new tab is the active one — and if zellij left it unnamed we give it a
+    // generated name so it remains addressable by name/id later.
+    let (tab_name, position) = match window_name {
+        Some(name) => {
+            let pos = tab_resolve::query_tabs()
+                .and_then(|tabs| tabs.into_iter().find(|t| t.name == name).map(|t| t.position));
+            (name, pos)
         }
+        None => match tab_resolve::active_tab() {
+            Some(tab) if !tab.name.trim().is_empty() => (tab.name, Some(tab.position)),
+            Some(tab) => {
+                let generated = format!("cct-win-{}", tab.position);
+                let _ = zellij_bridge::action(&["rename-tab", &generated]);
+                (generated, Some(tab.position))
+            }
+            None => {
+                logger::log_msg("new-window: could not resolve created tab");
+                (String::new(), None)
+            }
+        },
+    };
+
+    let mut winmap = winmap::WinMap::load();
+    let win_id = winmap.id_for(&tab_name);
+
+    if print_info {
+        let ctx = format::FormatContext {
+            window_id: Some(format!("@{win_id}")),
+            window_name: Some(tab_name.clone()),
+            window_index: position,
+            ..Default::default()
+        };
+        let out = match format_str {
+            Some(fmt) => format::expand(fmt, &ctx),
+            None => format!("@{win_id}"),
+        };
+        println!("{out}");
     }
 
     0

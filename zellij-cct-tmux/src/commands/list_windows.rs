@@ -1,4 +1,4 @@
-use crate::{format, logger, tab_resolve};
+use crate::{format, logger, tab_resolve, winmap};
 
 /// tmux list-windows [-t <session>] [-F <format>]
 pub fn run(args: &[&str]) -> i32 {
@@ -29,16 +29,19 @@ pub fn run(args: &[&str]) -> i32 {
         }
     };
 
+    let mut winmap = winmap::WinMap::load();
     for tab in &tabs {
+        let win_id = winmap.id_for(&tab.name);
         if let Some(template) = fmt {
             let ctx = format::FormatContext {
+                window_id: Some(format!("@{win_id}")),
                 window_name: Some(tab.name.clone()),
                 window_index: Some(tab.position),
                 ..Default::default()
             };
             println!("{}", format::expand(template, &ctx));
         } else {
-            println!("{}: {}", tab.position, tab.name);
+            println!("{}: {} (@{})", tab.position, tab.name, win_id);
         }
     }
 
